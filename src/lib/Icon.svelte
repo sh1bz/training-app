@@ -14,7 +14,8 @@
       | 'clock'
       | 'trash'
       | 'back'
-      | 'search';
+      | 'search'
+      | 'sparkles';
     size?: number;
     color?: string;
   };
@@ -81,5 +82,10 @@
   <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
     <circle cx="11" cy="11" r="7" />
     <path d="M21 21l-4.3-4.3" />
+  </svg>
+{:else if name === 'sparkles'}
+  <svg width={size} height={size} viewBox="0 0 24 24" fill={color}>
+    <path d="M12 2l1.8 4.9L18.7 8l-4.9 1.8L12 14l-1.8-4.2L5.3 8l4.9-1.1L12 2z" />
+    <path d="M18.5 13l.9 2.4 2.6.6-2.4.9-1.1 2.4-.9-2.4-2.4-.9 2.4-.6.9-1.8z" />
   </svg>
 {/if}

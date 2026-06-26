@@ -171,6 +171,18 @@
       ></div>
     </div>
 
+    {#if session.coachNotes?.length}
+      <div class="coach-notes">
+        <div class="coach-notes-head">
+          <Icon name="sparkles" size={14} color="var(--blue)" />
+          <span>Coach</span>
+        </div>
+        {#each session.coachNotes as note}
+          <div class="coach-note">{note}</div>
+        {/each}
+      </div>
+    {/if}
+
     <div class="exercises">
       {#each session.exercises as ex, exIdx (ex.templateId)}
         <section class="ex-card">
@@ -331,6 +343,33 @@
     height: 100%;
     background: linear-gradient(90deg, var(--blue), var(--green));
     transition: width 0.3s ease;
+  }
+
+  .coach-notes {
+    background: linear-gradient(135deg, rgba(10, 132, 255, 0.12), rgba(191, 90, 242, 0.1));
+    border: 0.5px solid rgba(10, 132, 255, 0.3);
+    border-radius: var(--radius-card);
+    padding: 12px 14px;
+    margin-bottom: 16px;
+  }
+  .coach-notes-head {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    font-size: 12px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: var(--blue);
+    margin-bottom: 6px;
+  }
+  .coach-note {
+    font-size: 14px;
+    color: var(--text);
+    line-height: 1.35;
+  }
+  .coach-note + .coach-note {
+    margin-top: 3px;
   }
 
   .exercises {

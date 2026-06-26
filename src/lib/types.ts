@@ -59,4 +59,32 @@ export type Session = {
   startedAt: string;
   endedAt?: string;
   exercises: SessionExercise[];
+  coachNotes?: string[];
+};
+
+// ── AI Coach ───────────────────────────────────────────
+
+export type CoachActionId =
+  | 'easier'
+  | 'harder'
+  | 'shorter'
+  | 'longer'
+  | 'no-equipment'
+  | 'gym-busy'
+  | 'variations';
+
+export type CoachChange = {
+  exercise: string;
+  /** Set/load change description, e.g. "4→3 sets". */
+  detail?: string;
+  /** Replacement exercise name, when this is a swap. */
+  to?: string;
+};
+
+export type CoachResult = {
+  title: string;
+  summary: string;
+  changes: CoachChange[];
+  /** The rebuilt exercise list to apply to the active session. */
+  exercises: SessionExercise[];
 };

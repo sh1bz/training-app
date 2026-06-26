@@ -2,6 +2,7 @@
   import '../app.css';
   import { page } from '$app/stores';
   import Icon from '$lib/Icon.svelte';
+  import Coach from '$lib/Coach.svelte';
 
   type Tab = {
     href: string;
@@ -36,6 +37,8 @@
 
 <div class="app">
   {@render children()}
+
+  <Coach />
 
   <nav class="tab-bar" aria-label="Primary">
     <div class="tab-bar-inner">

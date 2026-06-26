@@ -1,4 +1,5 @@
 import type {
+  CoachResult,
   ExerciseTemplate,
   Program,
   ProgramColor,
@@ -6,6 +7,7 @@ import type {
   SessionExercise,
   WorkoutTemplate
 } from './types';
+import { suggestWeight } from './coach';
 
 const uid = () => Math.random().toString(36).slice(2, 10);
 
@@ -301,18 +303,30 @@ class Store {
     const workout = program.workouts.find((w) => w.id === workoutId);
     if (!workout) return null;
 
-    const exercises: SessionExercise[] = workout.exercises.map((e) => ({
-      templateId: e.id,
-      name: e.name,
-      targetRepsMin: e.targetRepsMin,
-      targetRepsMax: e.targetRepsMax,
-      restSeconds: e.restSeconds,
-      sets: Array.from({ length: e.targetSets }, () => ({
-        weight: e.workingWeight ?? 0,
-        reps: 0,
-        done: false
-      }))
-    }));
+    // The Coach remembers past performance and progresses load automatically,
+    // so the user never re-enters the same weights.
+    const coachNotes: string[] = [];
+    const exercises: SessionExercise[] = workout.exercises.map((e) => {
+      const { weight, note } = suggestWeight(
+        e.name,
+        e.targetRepsMax,
+        this.sessions,
+        e.workingWeight ?? 0
+      );
+      if (note) coachNotes.push(`${e.name}: ${note}`);
+      return {
+        templateId: e.id,
+        name: e.name,
+        targetRepsMin: e.targetRepsMin,
+        targetRepsMax: e.targetRepsMax,
+        restSeconds: e.restSeconds,
+        sets: Array.from({ length: e.targetSets }, () => ({
+          weight,
+          reps: 0,
+          done: false
+        }))
+      };
+    });
 
     const session: Session = {
       id: `s_${uid()}`,
@@ -321,7 +335,8 @@ class Store {
       workoutId,
       workoutName: workout.name,
       startedAt: new Date().toISOString(),
-      exercises
+      exercises,
+      coachNotes: coachNotes.length ? coachNotes : undefined
     };
 
     this.sessions = [session, ...this.sessions];
@@ -384,6 +399,21 @@ class Store {
   cancelWorkout(sessionId: string) {
     this.sessions = this.sessions.filter((s) => s.id !== sessionId);
     if (this.activeSessionId === sessionId) this.activeSessionId = null;
+  }
+
+  // ── AI Coach ─────────────────────────────────────────
+
+  /** Apply a coach-rebuilt exercise list to a session and log a note. */
+  applyCoachResult(sessionId: string, result: CoachResult) {
+    this.sessions = this.sessions.map((s) =>
+      s.id === sessionId
+        ? {
+            ...s,
+            exercises: result.exercises,
+            coachNotes: [...(s.coachNotes ?? []), `${result.title}: ${result.summary}`]
+          }
+        : s
+    );
   }
 }
 
