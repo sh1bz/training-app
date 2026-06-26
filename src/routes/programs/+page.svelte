@@ -1,5 +1,6 @@
 <script lang="ts">
   import { goto } from '$app/navigation';
+  import { base } from '$app/paths';
   import { store } from '$lib/store.svelte';
   import Icon from '$lib/Icon.svelte';
 
@@ -22,7 +23,7 @@
     newDesc = '';
     newEmoji = '🏋️';
     creating = false;
-    goto(`/programs/${p.id}/edit`);
+    goto(`${base}/programs/${p.id}/edit`);
   }
 </script>
 
@@ -72,7 +73,7 @@
 
   <div class="list-card">
     {#each store.programs as program}
-      <a class="list-row" href={`/programs/${program.id}`}>
+      <a class="list-row" href={`${base}/programs/${program.id}`}>
         <div class="leading" style:background={`color-mix(in srgb, var(--${program.color}) 22%, transparent)`}>
           <span style:font-size="18px">{program.emoji}</span>
         </div>

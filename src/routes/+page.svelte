@@ -1,5 +1,6 @@
 <script lang="ts">
   import { store } from '$lib/store.svelte';
+  import { base } from '$app/paths';
   import Icon from '$lib/Icon.svelte';
 
   const completedSessions = $derived(store.sessions.filter((s) => s.endedAt));
@@ -53,7 +54,7 @@
 
   {#if store.activeSession}
     {@const s = store.activeSession}
-    <a class="active-card fade-up" href={`/workout/${s.id}`}>
+    <a class="active-card fade-up" href={`${base}/workout/${s.id}`}>
       <div class="active-pulse"></div>
       <div class="active-body">
         <div class="active-label">Workout in progress</div>
@@ -87,11 +88,11 @@
 
   <div class="section-header">
     <h2>Recent</h2>
-    <a class="action" href="/history">See All</a>
+    <a class="action" href={`${base}/history`}>See All</a>
   </div>
 
   {#if lastSession}
-    <a class="recent-card" href={`/history/${lastSession.id}`}>
+    <a class="recent-card" href={`${base}/history/${lastSession.id}`}>
       <div class="recent-meta">
         <div class="recent-date">{formatDate(lastSession.startedAt)}</div>
         <div class="recent-title">{lastSession.workoutName}</div>
@@ -112,7 +113,7 @@
   <div class="section-header">
     <h2>Quick Start</h2>
   </div>
-  <a class="card quick-start" href="/programs">
+  <a class="card quick-start" href={`${base}/programs`}>
     <div class="quick-icon">🏋️</div>
     <div class="quick-body">
       <div class="quick-title">Choose a program</div>

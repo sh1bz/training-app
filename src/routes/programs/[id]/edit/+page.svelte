@@ -1,6 +1,7 @@
 <script lang="ts">
   import { page } from '$app/stores';
   import { goto } from '$app/navigation';
+  import { base } from '$app/paths';
   import { store } from '$lib/store.svelte';
   import Icon from '$lib/Icon.svelte';
   import type { ProgramColor } from '$lib/types';
@@ -36,7 +37,7 @@
 
   function addWorkout() {
     const w = store.addWorkout(programId, 'New Workout');
-    if (w) goto(`/programs/${programId}/workouts/${w.id}/edit`);
+    if (w) goto(`${base}/programs/${programId}/workouts/${w.id}/edit`);
   }
 
   function removeWorkout(id: string, name: string) {
@@ -48,7 +49,7 @@
     if (!program) return;
     if (!confirm(`Delete program "${program.name}"? This cannot be undone.`)) return;
     store.deleteProgram(programId);
-    goto('/programs');
+    goto(`${base}/programs`);
   }
 </script>
 
@@ -58,11 +59,11 @@
 
 <div class="page">
   <div class="topbar">
-    <a class="back" href={`/programs/${programId}`}>
+    <a class="back" href={`${base}/programs/${programId}`}>
       <Icon name="back" size={24} color="var(--blue)" />
       <span>Back</span>
     </a>
-    <a class="done" href={`/programs/${programId}`}>Done</a>
+    <a class="done" href={`${base}/programs/${programId}`}>Done</a>
   </div>
 
   {#if program}
@@ -135,7 +136,7 @@
       <div class="list-card">
         {#each program.workouts as w (w.id)}
           <div class="list-row workout-row">
-            <a class="workout-link" href={`/programs/${programId}/workouts/${w.id}/edit`}>
+            <a class="workout-link" href={`${base}/programs/${programId}/workouts/${w.id}/edit`}>
               <div class="leading" style:background="var(--bg-elev-2)">
                 <Icon name="dumbbell" size={18} color="var(--text-secondary)" />
               </div>

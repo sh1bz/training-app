@@ -1,5 +1,6 @@
 <script lang="ts">
   import { store } from '$lib/store.svelte';
+  import { base } from '$app/paths';
   import Icon from '$lib/Icon.svelte';
 
   const completed = $derived(
@@ -73,7 +74,7 @@
       <div class="list-card">
         {#each sessions as s (s.id)}
           {@const stats = sessionStats(s)}
-          <a class="list-row history-row" href={`/history/${s.id}`}>
+          <a class="list-row history-row" href={`${base}/history/${s.id}`}>
             <div class="leading date">
               <div class="date-day">{new Date(s.startedAt).getDate()}</div>
               <div class="date-mon">{new Date(s.startedAt).toLocaleDateString(undefined, { month: 'short' })}</div>

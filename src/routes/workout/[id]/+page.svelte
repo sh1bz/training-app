@@ -1,6 +1,7 @@
 <script lang="ts">
   import { page } from '$app/stores';
   import { goto } from '$app/navigation';
+  import { base } from '$app/paths';
   import { onMount, onDestroy } from 'svelte';
   import { store } from '$lib/store.svelte';
   import Icon from '$lib/Icon.svelte';
@@ -129,14 +130,14 @@
       if (!confirm('No sets completed. Finish anyway?')) return;
     }
     store.finishWorkout(session.id);
-    goto('/history');
+    goto(`${base}/history`);
   }
 
   function cancel() {
     if (!session) return;
     if (!confirm('Discard this workout?')) return;
     store.cancelWorkout(session.id);
-    goto('/');
+    goto(`${base}/`);
   }
 </script>
 

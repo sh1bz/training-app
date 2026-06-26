@@ -1,6 +1,7 @@
 <script lang="ts">
   import { page } from '$app/stores';
   import { goto } from '$app/navigation';
+  import { base } from '$app/paths';
   import { store, formatRest } from '$lib/store.svelte';
   import Icon from '$lib/Icon.svelte';
 
@@ -9,7 +10,7 @@
   function start(workoutId: string) {
     if (!program) return;
     const session = store.startWorkout(program.id, workoutId);
-    if (session) goto(`/workout/${session.id}`);
+    if (session) goto(`${base}/workout/${session.id}`);
   }
 </script>
 
@@ -19,12 +20,12 @@
 
 <div class="page">
   <div class="topbar">
-    <a class="back" href="/programs">
+    <a class="back" href={`${base}/programs`}>
       <Icon name="back" size={24} color="var(--blue)" />
       <span>Programs</span>
     </a>
     {#if program}
-      <a class="edit-link" href={`/programs/${program.id}/edit`}>Edit</a>
+      <a class="edit-link" href={`${base}/programs/${program.id}/edit`}>Edit</a>
     {/if}
   </div>
 

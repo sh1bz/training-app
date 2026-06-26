@@ -1,6 +1,7 @@
 <script lang="ts">
   import '../app.css';
   import { page } from '$app/stores';
+  import { base } from '$app/paths';
   import Icon from '$lib/Icon.svelte';
   import Coach from '$lib/Coach.svelte';
 
@@ -13,24 +14,28 @@
 
   const tabs: Tab[] = [
     {
-      href: '/',
+      href: `${base}/`,
       label: 'Summary',
       icon: 'summary',
       match: (p) => p === '/' || p.startsWith('/workout')
     },
     {
-      href: '/programs',
+      href: `${base}/programs`,
       label: 'Programs',
       icon: 'programs',
       match: (p) => p.startsWith('/programs')
     },
     {
-      href: '/history',
+      href: `${base}/history`,
       label: 'History',
       icon: 'history',
       match: (p) => p.startsWith('/history')
     }
   ];
+
+  // Match against the path *without* the base prefix so highlighting works
+  // under GitHub Pages' /<repo>/ base.
+  const relPath = $derived($page.url.pathname.slice(base.length) || '/');
 
   let { children } = $props();
 </script>
@@ -43,7 +48,7 @@
   <nav class="tab-bar" aria-label="Primary">
     <div class="tab-bar-inner">
       {#each tabs as tab}
-        {@const active = tab.match($page.url.pathname)}
+        {@const active = tab.match(relPath)}
         <a class="tab" class:active href={tab.href} aria-current={active ? 'page' : undefined}>
           <Icon name={tab.icon} size={24} />
           <span>{tab.label}</span>

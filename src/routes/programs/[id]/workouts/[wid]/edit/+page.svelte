@@ -1,5 +1,6 @@
 <script lang="ts">
   import { page } from '$app/stores';
+  import { base } from '$app/paths';
   import { store, formatRest } from '$lib/store.svelte';
   import Icon from '$lib/Icon.svelte';
 
@@ -42,11 +43,11 @@
 
 <div class="page">
   <div class="topbar">
-    <a class="back" href={`/programs/${programId}/edit`}>
+    <a class="back" href={`${base}/programs/${programId}/edit`}>
       <Icon name="back" size={24} color="var(--blue)" />
       <span>{program?.name ?? 'Program'}</span>
     </a>
-    <a class="done" href={`/programs/${programId}/edit`}>Done</a>
+    <a class="done" href={`${base}/programs/${programId}/edit`}>Done</a>
   </div>
 
   {#if workout && program}

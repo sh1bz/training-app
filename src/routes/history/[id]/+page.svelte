@@ -1,5 +1,6 @@
 <script lang="ts">
   import { page } from '$app/stores';
+  import { base } from '$app/paths';
   import { store } from '$lib/store.svelte';
   import Icon from '$lib/Icon.svelte';
 
@@ -41,7 +42,7 @@
 </svelte:head>
 
 <div class="page">
-  <a class="back" href="/history">
+  <a class="back" href={`${base}/history`}>
     <Icon name="back" size={24} color="var(--blue)" />
     <span>History</span>
   </a>
