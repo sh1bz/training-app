@@ -71,7 +71,7 @@
 
   <div class="section-label">All Programs</div>
 
-  <div class="list-card">
+  <div class="list-card stagger">
     {#each store.programs as program}
       <a class="list-row" href={`${base}/programs/${program.id}`}>
         <div class="leading" style:background={`color-mix(in srgb, var(--${program.color}) 22%, transparent)`}>

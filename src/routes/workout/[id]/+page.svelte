@@ -3,6 +3,8 @@
   import { goto } from '$app/navigation';
   import { base } from '$app/paths';
   import { onMount, onDestroy } from 'svelte';
+  import { fly } from 'svelte/transition';
+  import { cubicOut } from 'svelte/easing';
   import { store } from '$lib/store.svelte';
   import Icon from '$lib/Icon.svelte';
 
@@ -90,11 +92,21 @@
 
   // ── One-exercise-at-a-time pager ─────────────────────
   let current = $state(0);
+  let dir = $state(1); // slide direction: 1 = forward, -1 = back
   const exCount = $derived(session ? session.exercises.length : 0);
   const currentEx = $derived(session ? session.exercises[current] : undefined);
   const currentDone = $derived(
     !!currentEx && currentEx.sets.length > 0 && currentEx.sets.every((s) => s.done)
   );
+
+  let finishing = $state(false);
+  const totalVolume = $derived.by(() => {
+    if (!session) return 0;
+    let v = 0;
+    for (const ex of session.exercises)
+      for (const s of ex.sets) if (s.done) v += s.weight * s.reps;
+    return v;
+  });
 
   // Keep the index valid if the Coach rebuilds the exercise list.
   $effect(() => {
@@ -103,6 +115,7 @@
 
   function goTo(i: number) {
     if (i < 0 || i > exCount - 1) return;
+    dir = i > current ? 1 : -1;
     current = i;
     try {
       navigator.vibrate?.(10);
@@ -167,8 +180,12 @@
     if (progress.done === 0) {
       if (!confirm('No sets completed. Finish anyway?')) return;
     }
+    finishing = true;
+    try {
+      navigator.vibrate?.([30, 40, 80]);
+    } catch {}
     store.finishWorkout(session.id);
-    goto(`${base}/history`);
+    setTimeout(() => goto(`${base}/history`), 1500);
   }
 
   function cancel() {
@@ -245,7 +262,10 @@
         {/if}
 
         {#key current}
-          <section class="ex-card fade-up">
+          <section
+            class="ex-card"
+            in:fly={{ x: dir * 56, duration: 300, easing: cubicOut, opacity: 0 }}
+          >
             <header class="ex-head">
               <div class="ex-count">Exercise {current + 1} of {exCount}</div>
               <h3 class="ex-title">{currentEx.name}</h3>
@@ -333,6 +353,19 @@
       </button>
     {/if}
   </nav>
+{/if}
+
+{#if finishing}
+  <div class="celebrate" role="alertdialog" aria-label="Workout complete">
+    <div class="celebrate-inner">
+      <svg class="cel-check" viewBox="0 0 52 52" aria-hidden="true">
+        <circle class="cel-ring" cx="26" cy="26" r="24" />
+        <path class="cel-tick" d="M14 27 l8 8 l16 -18" />
+      </svg>
+      <div class="cel-title">Workout Complete</div>
+      <div class="cel-stats">{progress.done} sets · {(totalVolume / 1000).toFixed(1)} t lifted</div>
+    </div>
+  </div>
 {/if}
 
 {#if restEndAt !== null}
@@ -578,6 +611,12 @@
   .check-btn:active { transform: scale(0.92); }
   .check-btn.checked {
     background: var(--green);
+    animation: checkPop 0.32s cubic-bezier(0.34, 1.56, 0.64, 1);
+  }
+  @keyframes checkPop {
+    0% { transform: scale(0.6); box-shadow: 0 0 0 0 rgba(48, 209, 88, 0.5); }
+    60% { transform: scale(1.18); box-shadow: 0 0 0 9px rgba(48, 209, 88, 0); }
+    100% { transform: scale(1); box-shadow: 0 0 0 0 rgba(48, 209, 88, 0); }
   }
 
   .add-set {
@@ -748,4 +787,67 @@
     place-items: center;
   }
   .rest-skip:active { background: rgba(255, 255, 255, 0.16); }
+
+  /* ── Finish celebration ────────────────────── */
+  .celebrate {
+    position: fixed;
+    inset: 0;
+    z-index: 200;
+    display: grid;
+    place-items: center;
+    padding: 24px;
+    background: radial-gradient(circle at center, rgba(10, 132, 255, 0.18), rgba(0, 0, 0, 0.94) 70%);
+    animation: celIn 0.35s ease both;
+  }
+  @keyframes celIn {
+    from { opacity: 0; }
+    to { opacity: 1; }
+  }
+  .celebrate-inner {
+    text-align: center;
+    animation: celPop 0.55s cubic-bezier(0.34, 1.56, 0.64, 1) both;
+  }
+  @keyframes celPop {
+    from { opacity: 0; transform: scale(0.82) translateY(12px); }
+    to { opacity: 1; transform: none; }
+  }
+  .cel-check {
+    width: 108px;
+    height: 108px;
+    margin-bottom: 22px;
+  }
+  .cel-ring {
+    fill: none;
+    stroke: var(--green);
+    stroke-width: 3;
+    stroke-dasharray: 151;
+    stroke-dashoffset: 151;
+    animation: drawRing 0.6s ease forwards 0.12s;
+  }
+  .cel-tick {
+    fill: none;
+    stroke: var(--green);
+    stroke-width: 4;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+    stroke-dasharray: 40;
+    stroke-dashoffset: 40;
+    animation: drawTick 0.34s cubic-bezier(0.65, 0, 0.35, 1) forwards 0.58s;
+    filter: drop-shadow(0 0 8px rgba(48, 209, 88, 0.6));
+  }
+  @keyframes drawRing { to { stroke-dashoffset: 0; } }
+  @keyframes drawTick { to { stroke-dashoffset: 0; } }
+  .cel-title {
+    font-size: 27px;
+    font-weight: 800;
+    letter-spacing: -0.02em;
+    animation: fadeUp 0.45s ease both 0.72s;
+  }
+  .cel-stats {
+    margin-top: 6px;
+    color: var(--text-secondary);
+    font-size: 16px;
+    font-feature-settings: 'tnum';
+    animation: fadeUp 0.45s ease both 0.86s;
+  }
 </style>

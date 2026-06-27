@@ -71,7 +71,7 @@
   {:else}
     {#each grouped as [month, sessions]}
       <div class="section-label">{month}</div>
-      <div class="list-card">
+      <div class="list-card stagger">
         {#each sessions as s (s.id)}
           {@const stats = sessionStats(s)}
           <a class="list-row history-row" href={`${base}/history/${s.id}`}>

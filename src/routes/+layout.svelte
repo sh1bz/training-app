@@ -2,8 +2,21 @@
   import '../app.css';
   import { page } from '$app/stores';
   import { base } from '$app/paths';
+  import { onNavigate } from '$app/navigation';
   import Icon from '$lib/Icon.svelte';
   import Coach from '$lib/Coach.svelte';
+
+  // Native cross-page morphing via the View Transitions API (progressive —
+  // browsers without support just navigate normally).
+  onNavigate((navigation) => {
+    if (!document.startViewTransition) return;
+    return new Promise((resolve) => {
+      document.startViewTransition(async () => {
+        resolve();
+        await navigation.complete;
+      });
+    });
+  });
 
   type Tab = {
     href: string;

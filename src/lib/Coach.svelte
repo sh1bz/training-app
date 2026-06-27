@@ -3,6 +3,8 @@
   import { applyAction, interpret } from '$lib/coach';
   import type { CoachActionId, CoachResult } from '$lib/types';
   import Icon from '$lib/Icon.svelte';
+  import { scale, fly } from 'svelte/transition';
+  import { backOut } from 'svelte/easing';
 
   // Only useful with a live session to reshape.
   const session = $derived(store.activeSession);
@@ -59,8 +61,13 @@
 </script>
 
 {#if session}
-  <button class="fab" onclick={() => (open = true)} aria-label="AI Coach">
-    <Icon name="sparkles" size={22} color="#fff" />
+  <button
+    class="fab"
+    onclick={() => (open = true)}
+    aria-label="AI Coach"
+    in:scale={{ duration: 340, start: 0.3, easing: backOut }}
+  >
+    <span class="fab-spark"><Icon name="sparkles" size={22} color="#fff" /></span>
     <span>Coach</span>
   </button>
 {/if}
@@ -82,7 +89,7 @@
       <div class="sub">{session.workoutName}</div>
     </header>
 
-    <div class="chips">
+    <div class="chips stagger">
       {#each actions as a}
         <button class="chip" onclick={() => tap(a.id)}>
           <span>{a.emoji}</span>{a.label}
@@ -103,12 +110,12 @@
     </div>
 
     {#if reply}
-      <div class="reply fade-up">{reply}</div>
+      <div class="reply" in:fly={{ y: 10, duration: 260, easing: backOut }}>{reply}</div>
     {/if}
 
     {#if result}
       {#if result.changes.length}
-        <ul class="changes fade-up">
+        <ul class="changes stagger">
           {#each result.changes as c}
             <li>
               <span class="ex">{c.exercise}</span>
@@ -117,7 +124,9 @@
           {/each}
         </ul>
       {/if}
-      <button class="apply fade-up" onclick={apply}>Apply to workout</button>
+      <button class="apply" onclick={apply} in:fly={{ y: 12, duration: 280, easing: backOut }}>
+        Apply to workout
+      </button>
     {/if}
   </div>
 {/if}
@@ -138,9 +147,22 @@
     font-weight: 600;
     box-shadow: 0 8px 24px rgba(10, 132, 255, 0.4);
     z-index: 70;
+    animation: fabGlow 3.2s ease-in-out infinite;
   }
   .fab:active {
     transform: scale(0.95);
+  }
+  @keyframes fabGlow {
+    0%, 100% { box-shadow: 0 8px 24px rgba(10, 132, 255, 0.35); }
+    50% { box-shadow: 0 8px 30px rgba(191, 90, 242, 0.55); }
+  }
+  .fab-spark {
+    display: inline-flex;
+    animation: twinkle 2.4s ease-in-out infinite;
+  }
+  @keyframes twinkle {
+    0%, 100% { transform: scale(1) rotate(0deg); opacity: 1; }
+    50% { transform: scale(1.18) rotate(12deg); opacity: 0.85; }
   }
 
   .scrim {
