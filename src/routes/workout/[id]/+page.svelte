@@ -88,6 +88,44 @@
     return { done, total };
   });
 
+  // ── One-exercise-at-a-time pager ─────────────────────
+  let current = $state(0);
+  const exCount = $derived(session ? session.exercises.length : 0);
+  const currentEx = $derived(session ? session.exercises[current] : undefined);
+  const currentDone = $derived(
+    !!currentEx && currentEx.sets.length > 0 && currentEx.sets.every((s) => s.done)
+  );
+
+  // Keep the index valid if the Coach rebuilds the exercise list.
+  $effect(() => {
+    if (current > exCount - 1) current = Math.max(0, exCount - 1);
+  });
+
+  function goTo(i: number) {
+    if (i < 0 || i > exCount - 1) return;
+    current = i;
+    try {
+      navigator.vibrate?.(10);
+    } catch {}
+  }
+
+  // Swipe between exercises.
+  let touchStartX = 0;
+  let touchStartY = 0;
+  function onTouchStart(e: TouchEvent) {
+    const t = e.changedTouches[0];
+    touchStartX = t.clientX;
+    touchStartY = t.clientY;
+  }
+  function onTouchEnd(e: TouchEvent) {
+    const t = e.changedTouches[0];
+    const dx = t.clientX - touchStartX;
+    const dy = t.clientY - touchStartY;
+    if (Math.abs(dx) > 60 && Math.abs(dx) > Math.abs(dy) * 1.4) {
+      goTo(current + (dx < 0 ? 1 : -1));
+    }
+  }
+
   function toggleDone(exIdx: number, setIdx: number) {
     if (!session) return;
     const set = session.exercises[exIdx].sets[setIdx];
@@ -172,90 +210,130 @@
       ></div>
     </div>
 
-    {#if session.coachNotes?.length}
-      <div class="coach-notes">
-        <div class="coach-notes-head">
-          <Icon name="sparkles" size={14} color="var(--blue)" />
-          <span>Coach</span>
-        </div>
-        {#each session.coachNotes as note}
-          <div class="coach-note">{note}</div>
-        {/each}
-      </div>
-    {/if}
-
-    <div class="exercises">
-      {#each session.exercises as ex, exIdx (ex.templateId)}
-        <section class="ex-card">
-          <header class="ex-head">
-            <div>
-              <h3 class="ex-title">{ex.name}</h3>
-              <div class="ex-target">
-                Target {ex.targetRepsMin === ex.targetRepsMax
-                  ? ex.targetRepsMin
-                  : `${ex.targetRepsMin}–${ex.targetRepsMax}`} reps
-              </div>
-            </div>
-          </header>
-
-          <div class="set-grid head">
-            <span>Set</span>
-            <span>kg</span>
-            <span>Reps</span>
-            <span></span>
-          </div>
-
-          {#each ex.sets as set, setIdx (setIdx)}
-            <div class="set-grid row" class:done={set.done}>
-              <div class="set-num">{setIdx + 1}</div>
-              <input
-                class="num-input"
-                type="number"
-                inputmode="decimal"
-                step="0.5"
-                value={set.weight || ''}
-                placeholder="0"
-                onfocus={(e) => (e.currentTarget as HTMLInputElement).select()}
-                oninput={(e) => updateWeight(exIdx, setIdx, (e.currentTarget as HTMLInputElement).value)}
-              />
-              <input
-                class="num-input"
-                type="number"
-                inputmode="numeric"
-                value={set.reps || ''}
-                placeholder="0"
-                onfocus={(e) => (e.currentTarget as HTMLInputElement).select()}
-                oninput={(e) => updateReps(exIdx, setIdx, (e.currentTarget as HTMLInputElement).value)}
-              />
-              <button
-                class="check-btn"
-                class:checked={set.done}
-                aria-label={set.done ? 'Mark not done' : 'Mark done'}
-                onclick={() => toggleDone(exIdx, setIdx)}
-                ondblclick={() => removeSet(exIdx, setIdx)}
-              >
-                {#if set.done}
-                  <Icon name="check" size={16} color="#fff" />
-                {/if}
-              </button>
-            </div>
-          {/each}
-
-          <button class="add-set" onclick={() => addSet(exIdx)}>
-            <Icon name="plus" size={16} color="var(--blue)" />
-            <span>Add Set</span>
-          </button>
-        </section>
+    <div class="dots" aria-label="Exercises">
+      {#each session.exercises as ex, i (ex.templateId)}
+        {@const allDone = ex.sets.length > 0 && ex.sets.every((s) => s.done)}
+        <button
+          class="dot-seg"
+          class:active={i === current}
+          class:done={allDone}
+          onclick={() => goTo(i)}
+          aria-label={`Exercise ${i + 1}: ${ex.name}`}
+          aria-current={i === current ? 'step' : undefined}
+        ></button>
       {/each}
     </div>
 
-    <button class="finish-cta" onclick={finish}>Finish Workout</button>
+    {#if currentEx}
+      <div
+        class="ex-stage"
+        role="group"
+        aria-label={`${currentEx.name}, exercise ${current + 1} of ${exCount}. Swipe to change.`}
+        ontouchstart={onTouchStart}
+        ontouchend={onTouchEnd}
+      >
+        {#if session.coachNotes?.length && current === 0}
+          <div class="coach-notes">
+            <div class="coach-notes-head">
+              <Icon name="sparkles" size={14} color="var(--blue)" />
+              <span>Coach</span>
+            </div>
+            {#each session.coachNotes as note}
+              <div class="coach-note">{note}</div>
+            {/each}
+          </div>
+        {/if}
+
+        {#key current}
+          <section class="ex-card fade-up">
+            <header class="ex-head">
+              <div class="ex-count">Exercise {current + 1} of {exCount}</div>
+              <h3 class="ex-title">{currentEx.name}</h3>
+              <div class="ex-target">
+                Target {currentEx.targetRepsMin === currentEx.targetRepsMax
+                  ? currentEx.targetRepsMin
+                  : `${currentEx.targetRepsMin}–${currentEx.targetRepsMax}`} reps
+              </div>
+            </header>
+
+            <div class="set-grid head">
+              <span>Set</span>
+              <span>kg</span>
+              <span>Reps</span>
+              <span></span>
+            </div>
+
+            {#each currentEx.sets as set, setIdx (setIdx)}
+              <div class="set-grid row" class:done={set.done}>
+                <div class="set-num">{setIdx + 1}</div>
+                <input
+                  class="num-input"
+                  type="number"
+                  inputmode="decimal"
+                  step="0.5"
+                  value={set.weight || ''}
+                  placeholder="0"
+                  onfocus={(e) => (e.currentTarget as HTMLInputElement).select()}
+                  oninput={(e) => updateWeight(current, setIdx, (e.currentTarget as HTMLInputElement).value)}
+                />
+                <input
+                  class="num-input"
+                  type="number"
+                  inputmode="numeric"
+                  value={set.reps || ''}
+                  placeholder="0"
+                  onfocus={(e) => (e.currentTarget as HTMLInputElement).select()}
+                  oninput={(e) => updateReps(current, setIdx, (e.currentTarget as HTMLInputElement).value)}
+                />
+                <button
+                  class="check-btn"
+                  class:checked={set.done}
+                  aria-label={set.done ? 'Mark not done' : 'Mark done'}
+                  onclick={() => toggleDone(current, setIdx)}
+                  ondblclick={() => removeSet(current, setIdx)}
+                >
+                  {#if set.done}
+                    <Icon name="check" size={16} color="#fff" />
+                  {/if}
+                </button>
+              </div>
+            {/each}
+
+            <button class="add-set" onclick={() => addSet(current)}>
+              <Icon name="plus" size={16} color="var(--blue)" />
+              <span>Add Set</span>
+            </button>
+          </section>
+        {/key}
+      </div>
+    {/if}
   {:else}
     <div class="card empty">
       <div class="empty-title">Workout not found</div>
     </div>
   {/if}
 </div>
+
+{#if session && currentEx}
+  <nav class="ex-dock" aria-label="Exercise navigation">
+    <button class="dock-btn prev" disabled={current === 0} onclick={() => goTo(current - 1)}>
+      <Icon name="back" size={20} color={current === 0 ? 'var(--text-tertiary)' : 'var(--text)'} />
+      <span>Prev</span>
+    </button>
+    <div class="dock-pos">{current + 1} <span class="of">/</span> {exCount}</div>
+    {#if current < exCount - 1}
+      <button class="dock-btn next" class:ready={currentDone} onclick={() => goTo(current + 1)}>
+        <span>Next</span>
+        <Icon name="chevron" size={20} color="#fff" />
+      </button>
+    {:else}
+      <button class="dock-btn finish" onclick={finish}>
+        <span>Finish</span>
+        <Icon name="check" size={18} color="#000" />
+      </button>
+    {/if}
+  </nav>
+{/if}
 
 {#if restEndAt !== null}
   <div class="rest-banner" class:done={restRemaining === 0}>
@@ -281,6 +359,9 @@
 <style>
   .workout-page {
     padding-top: calc(var(--safe-top) + 4px);
+    display: flex;
+    flex-direction: column;
+    min-height: 100dvh;
   }
 
   .workout-header {
@@ -373,10 +454,44 @@
     margin-top: 3px;
   }
 
-  .exercises {
+  /* ── Pager: dots ───────────────────────────── */
+  .dots {
+    display: flex;
+    gap: 6px;
+    margin-bottom: 16px;
+  }
+  .dot-seg {
+    flex: 1;
+    height: 4px;
+    border-radius: 999px;
+    background: var(--bg-elev-2);
+    transition: background 0.2s ease, transform 0.15s ease;
+  }
+  .dot-seg.done {
+    background: var(--green);
+  }
+  .dot-seg.active {
+    background: var(--blue);
+    transform: scaleY(1.6);
+  }
+  .dot-seg.active.done {
+    background: var(--green);
+  }
+
+  /* ── Pager: stage ──────────────────────────── */
+  .ex-stage {
+    flex: 1 1 auto;
     display: flex;
     flex-direction: column;
-    gap: 14px;
+  }
+
+  .ex-count {
+    font-size: 13px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: var(--blue);
+    margin-bottom: 4px;
   }
 
   .ex-card {
@@ -478,18 +593,76 @@
   }
   .add-set:active { background: var(--bg-elev-2); }
 
-  .finish-cta {
-    margin-top: 24px;
-    width: 100%;
-    padding: 16px;
+  /* ── Pager: bottom nav dock ────────────────── */
+  .ex-dock {
+    position: fixed;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    z-index: 50;
+    max-width: 640px;
+    margin: 0 auto;
+    display: grid;
+    grid-template-columns: 1fr auto 1fr;
+    align-items: center;
+    gap: 10px;
+    padding: 10px 16px calc(10px + var(--safe-bottom));
+    background: rgba(18, 18, 20, 0.82);
+    backdrop-filter: blur(24px) saturate(180%);
+    -webkit-backdrop-filter: blur(24px) saturate(180%);
+    border-top: 0.5px solid rgba(255, 255, 255, 0.08);
+  }
+  .dock-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 4px;
+    height: 48px;
     border-radius: 14px;
+    font-size: 16px;
+    font-weight: 600;
+    transition: transform 0.08s ease, opacity 0.15s ease;
+  }
+  .dock-btn:active {
+    transform: scale(0.96);
+  }
+  .dock-btn.prev {
+    background: var(--bg-elev-2);
+    color: var(--text);
+    padding-right: 6px;
+  }
+  .dock-btn.prev:disabled {
+    opacity: 0.4;
+  }
+  .dock-btn.next {
+    background: var(--blue);
+    color: #fff;
+    padding-left: 14px;
+  }
+  .dock-btn.next.ready {
+    animation: readyPulse 1.6s ease-in-out infinite;
+  }
+  .dock-btn.finish {
     background: var(--green);
     color: #000;
-    font-size: 17px;
-    font-weight: 700;
-    letter-spacing: -0.01em;
+    padding: 0 16px;
   }
-  .finish-cta:active { opacity: 0.85; transform: scale(0.99); }
+  @keyframes readyPulse {
+    0%, 100% { box-shadow: 0 0 0 0 rgba(10, 132, 255, 0); }
+    50% { box-shadow: 0 0 0 5px rgba(10, 132, 255, 0.28); }
+  }
+  .dock-pos {
+    min-width: 52px;
+    text-align: center;
+    font-size: 15px;
+    font-weight: 700;
+    color: var(--text-secondary);
+    font-feature-settings: 'tnum';
+  }
+  .dock-pos .of {
+    color: var(--text-tertiary);
+    margin: 0 1px;
+  }
 
   .rest-banner {
     position: fixed;

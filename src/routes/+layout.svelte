@@ -37,6 +37,9 @@
   // under GitHub Pages' /<repo>/ base.
   const relPath = $derived($page.url.pathname.slice(base.length) || '/');
 
+  // Hide the tab bar during an active workout for a full-screen, focused session.
+  const showTabs = $derived(!relPath.startsWith('/workout'));
+
   let { children } = $props();
 </script>
 
@@ -45,17 +48,19 @@
 
   <Coach />
 
-  <nav class="tab-bar" aria-label="Primary">
-    <div class="tab-bar-inner">
-      {#each tabs as tab}
-        {@const active = tab.match(relPath)}
-        <a class="tab" class:active href={tab.href} aria-current={active ? 'page' : undefined}>
-          <Icon name={tab.icon} size={24} />
-          <span>{tab.label}</span>
-        </a>
-      {/each}
-    </div>
-  </nav>
+  {#if showTabs}
+    <nav class="tab-bar" aria-label="Primary">
+      <div class="tab-bar-inner">
+        {#each tabs as tab}
+          {@const active = tab.match(relPath)}
+          <a class="tab" class:active href={tab.href} aria-current={active ? 'page' : undefined}>
+            <Icon name={tab.icon} size={24} />
+            <span>{tab.label}</span>
+          </a>
+        {/each}
+      </div>
+    </nav>
+  {/if}
 </div>
 
 <style>
