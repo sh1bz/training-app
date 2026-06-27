@@ -6,6 +6,7 @@
   import { fly } from 'svelte/transition';
   import { cubicOut } from 'svelte/easing';
   import { store } from '$lib/store.svelte';
+  import { lastSessionSets } from '$lib/coach';
   import Icon from '$lib/Icon.svelte';
 
   const session = $derived(store.getSession($page.params.id ?? ''));
@@ -108,6 +109,61 @@
     return v;
   });
 
+  // ── Guided, one-set-at-a-time logging ────────────────
+  const prevSets = $derived(currentEx ? lastSessionSets(currentEx.name, store.sessions) : []);
+  const activeIdx = $derived(currentEx ? currentEx.sets.findIndex((s) => !s.done) : -1);
+  const allSetsDone = $derived(!!currentEx && currentEx.sets.length > 0 && activeIdx === -1);
+  const activeSet = $derived(currentEx && activeIdx >= 0 ? currentEx.sets[activeIdx] : undefined);
+  const remaining = $derived(currentEx && activeIdx >= 0 ? currentEx.sets.length - 1 - activeIdx : 0);
+
+  function suggestedReps(i: number): number {
+    if (!currentEx) return 0;
+    return prevSets[i]?.reps ?? currentEx.targetRepsMax;
+  }
+
+  function prevLabel(i: number): string {
+    const p = prevSets[i] ?? prevSets[prevSets.length - 1];
+    if (!p) return 'First time — set your baseline';
+    return p.weight ? `Last time · ${p.weight} kg × ${p.reps}` : `Last time · ${p.reps} reps`;
+  }
+
+  // Pre-fill the active set's reps with the suggested target so a matching set is one tap.
+  $effect(() => {
+    if (!session || !currentEx || activeIdx < 0) return;
+    if (currentEx.sets[activeIdx].reps === 0) {
+      const sug = suggestedReps(activeIdx);
+      if (sug > 0) store.updateSet(session.id, current, activeIdx, { reps: sug });
+    }
+  });
+
+  function bumpWeight(i: number, d: number) {
+    if (!session || !currentEx) return;
+    const w = Math.max(0, Math.round(((currentEx.sets[i].weight ?? 0) + d) * 2) / 2);
+    store.updateSet(session.id, current, i, { weight: w });
+  }
+  function bumpReps(i: number, d: number) {
+    if (!session || !currentEx) return;
+    const r = Math.max(0, (currentEx.sets[i].reps ?? 0) + d);
+    store.updateSet(session.id, current, i, { reps: r });
+  }
+
+  function completeSet() {
+    if (!session || !currentEx || activeIdx < 0) return;
+    const set = currentEx.sets[activeIdx];
+    const reps = set.reps || suggestedReps(activeIdx);
+    store.updateSet(session.id, current, activeIdx, { reps, done: true });
+    const rest = currentEx.restSeconds ?? 0;
+    if (rest > 0) startRest(rest);
+    try {
+      navigator.vibrate?.(25);
+    } catch {}
+  }
+
+  function undoSet(i: number) {
+    if (!session) return;
+    store.updateSet(session.id, current, i, { done: false });
+  }
+
   // Keep the index valid if the Coach rebuilds the exercise list.
   $effect(() => {
     if (current > exCount - 1) current = Math.max(0, exCount - 1);
@@ -139,20 +195,6 @@
     }
   }
 
-  function toggleDone(exIdx: number, setIdx: number) {
-    if (!session) return;
-    const set = session.exercises[exIdx].sets[setIdx];
-    const becomingDone = !set.done;
-    store.updateSet(session.id, exIdx, setIdx, { done: becomingDone });
-    if (becomingDone) {
-      const rest = session.exercises[exIdx]?.restSeconds ?? 0;
-      if (rest > 0) startRest(rest);
-      try {
-        navigator.vibrate?.(20);
-      } catch {}
-    }
-  }
-
   function updateWeight(exIdx: number, setIdx: number, value: string) {
     if (!session) return;
     const w = parseFloat(value);
@@ -168,11 +210,6 @@
   function addSet(exIdx: number) {
     if (!session) return;
     store.addSet(session.id, exIdx);
-  }
-
-  function removeSet(exIdx: number, setIdx: number) {
-    if (!session) return;
-    store.removeSet(session.id, exIdx, setIdx);
   }
 
   function finish() {
@@ -272,57 +309,99 @@
               <div class="ex-target">
                 Target {currentEx.targetRepsMin === currentEx.targetRepsMax
                   ? currentEx.targetRepsMin
-                  : `${currentEx.targetRepsMin}–${currentEx.targetRepsMax}`} reps
+                  : `${currentEx.targetRepsMin}–${currentEx.targetRepsMax}`} reps · {currentEx.sets
+                  .length} sets
               </div>
             </header>
 
-            <div class="set-grid head">
-              <span>Set</span>
-              <span>kg</span>
-              <span>Reps</span>
-              <span></span>
-            </div>
-
-            {#each currentEx.sets as set, setIdx (setIdx)}
-              <div class="set-grid row" class:done={set.done}>
-                <div class="set-num">{setIdx + 1}</div>
-                <input
-                  class="num-input"
-                  type="number"
-                  inputmode="decimal"
-                  step="0.5"
-                  value={set.weight || ''}
-                  placeholder="0"
-                  onfocus={(e) => (e.currentTarget as HTMLInputElement).select()}
-                  oninput={(e) => updateWeight(current, setIdx, (e.currentTarget as HTMLInputElement).value)}
-                />
-                <input
-                  class="num-input"
-                  type="number"
-                  inputmode="numeric"
-                  value={set.reps || ''}
-                  placeholder="0"
-                  onfocus={(e) => (e.currentTarget as HTMLInputElement).select()}
-                  oninput={(e) => updateReps(current, setIdx, (e.currentTarget as HTMLInputElement).value)}
-                />
-                <button
-                  class="check-btn"
-                  class:checked={set.done}
-                  aria-label={set.done ? 'Mark not done' : 'Mark done'}
-                  onclick={() => toggleDone(current, setIdx)}
-                  ondblclick={() => removeSet(current, setIdx)}
-                >
-                  {#if set.done}
-                    <Icon name="check" size={16} color="#fff" />
+            {#if currentEx.sets.some((s) => s.done)}
+              <ul class="done-list">
+                {#each currentEx.sets as s, i (i)}
+                  {#if s.done}
+                    <li>
+                      <button class="done-row" onclick={() => undoSet(i)} aria-label={`Undo set ${i + 1}`}>
+                        <span class="dl-check"><Icon name="check" size={13} color="#000" /></span>
+                        <span class="dl-set">Set {i + 1}</span>
+                        <span class="dl-val">{s.weight ? `${s.weight} kg` : 'BW'} × {s.reps}</span>
+                      </button>
+                    </li>
                   {/if}
-                </button>
-              </div>
-            {/each}
+                {/each}
+              </ul>
+            {/if}
 
-            <button class="add-set" onclick={() => addSet(current)}>
-              <Icon name="plus" size={16} color="var(--blue)" />
-              <span>Add Set</span>
-            </button>
+            {#if !allSetsDone && activeSet}
+              <div class="set-focus">
+                <div class="sf-head">
+                  <div class="sf-set">
+                    Set {activeIdx + 1} <span class="sf-of">/ {currentEx.sets.length}</span>
+                  </div>
+                  <div class="sf-last">{prevLabel(activeIdx)}</div>
+                </div>
+
+                <div class="sf-controls">
+                  <div class="stepper">
+                    <button class="step-btn" onclick={() => bumpWeight(activeIdx, -2.5)} aria-label="Less weight">−</button>
+                    <label class="step-field">
+                      <input
+                        class="big-num"
+                        type="number"
+                        inputmode="decimal"
+                        step="0.5"
+                        value={activeSet.weight || ''}
+                        placeholder="0"
+                        onfocus={(e) => (e.currentTarget as HTMLInputElement).select()}
+                        oninput={(e) => updateWeight(current, activeIdx, (e.currentTarget as HTMLInputElement).value)}
+                      />
+                      <span class="step-unit">kg</span>
+                    </label>
+                    <button class="step-btn" onclick={() => bumpWeight(activeIdx, 2.5)} aria-label="More weight">+</button>
+                  </div>
+
+                  <div class="stepper">
+                    <button class="step-btn" onclick={() => bumpReps(activeIdx, -1)} aria-label="Fewer reps">−</button>
+                    <label class="step-field">
+                      <input
+                        class="big-num"
+                        type="number"
+                        inputmode="numeric"
+                        value={activeSet.reps || ''}
+                        placeholder="0"
+                        onfocus={(e) => (e.currentTarget as HTMLInputElement).select()}
+                        oninput={(e) => updateReps(current, activeIdx, (e.currentTarget as HTMLInputElement).value)}
+                      />
+                      <span class="step-unit">reps</span>
+                    </label>
+                    <button class="step-btn" onclick={() => bumpReps(activeIdx, 1)} aria-label="More reps">+</button>
+                  </div>
+                </div>
+
+                <button class="complete-set" onclick={completeSet}>
+                  <Icon name="check" size={20} color="#000" />
+                  <span>Complete Set {activeIdx + 1}</span>
+                </button>
+                <div class="sf-remaining">
+                  {remaining > 0
+                    ? `${remaining} more ${remaining === 1 ? 'set' : 'sets'} to go`
+                    : 'Last set — finish strong'}
+                </div>
+              </div>
+
+              <button class="add-set" onclick={() => addSet(current)}>
+                <Icon name="plus" size={16} color="var(--blue)" />
+                <span>Add a set</span>
+              </button>
+            {:else}
+              <div class="ex-complete">
+                <div class="exc-ring"><Icon name="check" size={34} color="var(--green)" /></div>
+                <div class="exc-title">{currentEx.name} complete</div>
+                <div class="exc-sub">
+                  {current < exCount - 1
+                    ? 'Swipe or tap Next for your next exercise'
+                    : 'Tap Finish to wrap up 💪'}
+                </div>
+              </div>
+            {/if}
           </section>
         {/key}
       </div>
@@ -530,7 +609,10 @@
   .ex-card {
     background: var(--bg-elev-1);
     border-radius: var(--radius-card);
-    padding: 16px;
+    padding: 18px 16px;
+    flex: 1 1 auto;
+    display: flex;
+    flex-direction: column;
   }
 
   .ex-head { margin-bottom: 14px; }
@@ -546,77 +628,190 @@
     margin-top: 2px;
   }
 
-  .set-grid {
+  /* ── Completed sets ────────────────────────── */
+  .done-list {
+    list-style: none;
+    margin: 0 0 14px;
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+  }
+  .done-row {
+    width: 100%;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 9px 12px;
+    border-radius: 10px;
+    background: rgba(48, 209, 88, 0.1);
+    color: var(--text);
+    text-align: left;
+    animation: rowIn 0.35s ease both;
+  }
+  .done-row:active { background: rgba(48, 209, 88, 0.2); }
+  .dl-check {
+    width: 20px;
+    height: 20px;
+    border-radius: 50%;
+    background: var(--green);
     display: grid;
-    grid-template-columns: 32px 1fr 1fr 36px;
+    place-items: center;
+    flex-shrink: 0;
+  }
+  .dl-set {
+    font-weight: 600;
+    font-size: 14px;
+  }
+  .dl-val {
+    margin-left: auto;
+    font-feature-settings: 'tnum';
+    font-weight: 600;
+    font-size: 15px;
+  }
+
+  /* ── Active set focus ──────────────────────── */
+  .set-focus {
+    flex: 1 1 auto;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    gap: 18px;
+    padding: 8px 0;
+  }
+  .sf-head {
+    text-align: center;
+  }
+  .sf-set {
+    font-size: 22px;
+    font-weight: 800;
+    letter-spacing: -0.01em;
+    font-feature-settings: 'tnum';
+  }
+  .sf-of {
+    color: var(--text-tertiary);
+    font-weight: 600;
+  }
+  .sf-last {
+    margin-top: 4px;
+    font-size: 14px;
+    color: var(--text-secondary);
+    font-feature-settings: 'tnum';
+  }
+
+  .sf-controls {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+  }
+  .stepper {
+    display: grid;
+    grid-template-columns: 56px 1fr 56px;
     align-items: center;
     gap: 10px;
   }
-  .set-grid.head {
-    color: var(--text-tertiary);
-    font-size: 12px;
-    font-weight: 600;
-    text-transform: uppercase;
-    letter-spacing: 0.04em;
-    padding: 0 0 6px;
-  }
-  .set-grid.row {
-    padding: 6px 0;
-    transition: background 0.2s ease;
-    border-radius: 8px;
-  }
-  .set-grid.row.done {
-    background: rgba(48, 209, 88, 0.08);
-  }
-  .set-num {
-    color: var(--text-secondary);
-    font-weight: 600;
-    text-align: center;
-    font-feature-settings: 'tnum';
-  }
-
-  .num-input {
+  .step-btn {
+    height: 56px;
+    border-radius: 14px;
     background: var(--bg-elev-2);
-    border-radius: 10px;
-    padding: 12px 8px;
-    text-align: center;
-    font-size: 17px;
-    font-weight: 600;
     color: var(--text);
+    font-size: 28px;
+    line-height: 1;
+    display: grid;
+    place-items: center;
+    transition: transform 0.08s ease, background 0.15s ease;
+  }
+  .step-btn:active { transform: scale(0.92); background: var(--bg-elev-3); }
+  .step-field {
+    display: flex;
+    align-items: baseline;
+    justify-content: center;
+    gap: 4px;
+    background: var(--bg-elev-2);
+    border-radius: 14px;
+    height: 56px;
+    padding: 0 8px;
+  }
+  .step-field:focus-within {
+    box-shadow: 0 0 0 2px rgba(10, 132, 255, 0.6);
+  }
+  .big-num {
     width: 100%;
+    text-align: center;
+    font-size: 30px;
+    font-weight: 800;
+    color: var(--text);
     font-feature-settings: 'tnum';
     -moz-appearance: textfield;
     appearance: textfield;
+    background: transparent;
   }
-  .num-input::-webkit-outer-spin-button,
-  .num-input::-webkit-inner-spin-button {
+  .big-num::-webkit-outer-spin-button,
+  .big-num::-webkit-inner-spin-button {
     -webkit-appearance: none;
     margin: 0;
   }
-  .num-input::placeholder { color: var(--text-quaternary); }
-  .num-input:focus {
-    background: var(--bg-elev-3);
-    box-shadow: 0 0 0 2px rgba(10, 132, 255, 0.5);
+  .big-num::placeholder { color: var(--text-quaternary); }
+  .step-unit {
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--text-secondary);
+    flex-shrink: 0;
   }
 
-  .check-btn {
-    width: 32px;
-    height: 32px;
+  .complete-set {
+    width: 100%;
+    height: 58px;
+    border-radius: 16px;
+    background: var(--green);
+    color: #000;
+    font-size: 18px;
+    font-weight: 800;
+    letter-spacing: -0.01em;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    box-shadow: 0 8px 24px rgba(48, 209, 88, 0.3);
+    transition: transform 0.08s ease, opacity 0.15s ease;
+  }
+  .complete-set:active { transform: scale(0.98); opacity: 0.9; }
+  .sf-remaining {
+    text-align: center;
+    font-size: 13px;
+    color: var(--text-tertiary);
+    margin-top: -8px;
+  }
+
+  /* ── Exercise complete state ───────────────── */
+  .ex-complete {
+    flex: 1 1 auto;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+    gap: 10px;
+    padding: 24px 0;
+    animation: celPop 0.5s cubic-bezier(0.34, 1.56, 0.64, 1) both;
+  }
+  .exc-ring {
+    width: 72px;
+    height: 72px;
     border-radius: 50%;
-    background: var(--bg-elev-2);
     display: grid;
     place-items: center;
-    transition: background 0.15s ease, transform 0.1s ease;
+    background: rgba(48, 209, 88, 0.14);
+    border: 2px solid rgba(48, 209, 88, 0.5);
   }
-  .check-btn:active { transform: scale(0.92); }
-  .check-btn.checked {
-    background: var(--green);
-    animation: checkPop 0.32s cubic-bezier(0.34, 1.56, 0.64, 1);
+  .exc-title {
+    font-size: 20px;
+    font-weight: 800;
+    letter-spacing: -0.01em;
   }
-  @keyframes checkPop {
-    0% { transform: scale(0.6); box-shadow: 0 0 0 0 rgba(48, 209, 88, 0.5); }
-    60% { transform: scale(1.18); box-shadow: 0 0 0 9px rgba(48, 209, 88, 0); }
-    100% { transform: scale(1); box-shadow: 0 0 0 0 rgba(48, 209, 88, 0); }
+  .exc-sub {
+    font-size: 14px;
+    color: var(--text-secondary);
   }
 
   .add-set {

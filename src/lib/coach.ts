@@ -189,6 +189,21 @@ export function suggestWeight(name: string, repsMax: number, history: Session[],
   return { weight: round2(top || fallback), note: '' };
 }
 
+/** The logged sets from the most recent completed session of an exercise. */
+export function lastSessionSets(name: string, history: Session[]): { weight: number; reps: number }[] {
+  const sessions = history
+    .filter((s) => s.endedAt)
+    .sort((a, b) => +new Date(b.startedAt) - +new Date(a.startedAt));
+  for (const s of sessions) {
+    for (const ex of s.exercises) {
+      if (norm(ex.name) !== norm(name)) continue;
+      const done = ex.sets.filter((x) => x.done);
+      if (done.length) return done.map((x) => ({ weight: x.weight, reps: x.reps }));
+    }
+  }
+  return [];
+}
+
 // ── Natural-language coaching ────────────────────────────────────
 
 export function interpret(message: string, session: Session): { reply: string; result?: CoachResult } {
